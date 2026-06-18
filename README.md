@@ -1,6 +1,6 @@
 # PureNav 🧭
 
-> AI 工具导航站 — 禅意双栏 · UGC 生态 · 一键部署
+> AI 工具导航站 — 禅意双栏 · UGC 生态 · 全自动狩猎机 · 一键部署
 
 ![Vue3](https://img.shields.io/badge/Vue-3.4-4FC08D?logo=vue.js)
 ![Tailwind](https://img.shields.io/badge/Tailwind-3-06B6D4?logo=tailwindcss)
@@ -20,6 +20,21 @@
 ---
 
 ## 功能特性
+
+### 🟢 全天候雷达 — Umami 无痕分析
+
+- **< 2KB 脚本**，defer 异步加载，零性能影响
+- **无需 Cookie 弹窗**，GDPR 合规
+- **实时仪表盘**：访客国家、设备、页面浏览、点击热图
+- 已注入 [`index.html`](index.html) `<head>`，开箱即用
+
+### 🔴 全自动 AI 狩猎机 — Cron 定时任务
+
+- **每天凌晨 3 点** (UTC) Cloudflare Cron 自动唤醒
+- **ProductHunt API** 抓取当日 Top 5 高赞项目
+- **DeepSeek API** AI 提纯：20 字中文描述 + 自动匹配分类
+- **自动写入 Supabase** `status='PENDING'`，早上醒来按 5 下 Y 即可
+- 代码见 [`api/ai-hunter.js`](api/ai-hunter.js)
 
 ### 🏠 主站 — 禅意双栏导航
 
@@ -49,13 +64,14 @@
 
 ```
 前端 (Cloudflare Workers Static Assets)
-├── index.html   — 主站 (Vue3 + Tailwind + Supabase)
-├── submit.html  — 提交页 (Vue3 + CF Worker + Supabase)
-└── review.html  — 审核后台 (Vue3 + Supabase Auth)
+├── index.html     — 主站 (Vue3 + Tailwind + Supabase + Umami)
+├── submit.html    — 提交页 (Vue3 + CF Worker + Supabase)
+└── review.html    — 审核后台 (Vue3 + Supabase Auth)
 
 后端 (BaaS + Edge Function)
-├── Supabase     — 数据库 (categories + sites) + Auth
-└── CF Worker    — URL 解析引擎 (HTMLRewriter)
+├── Supabase       — 数据库 (categories + sites) + Auth
+├── CF Worker      — URL 解析引擎 (HTMLRewriter)
+└── ai-hunter.js   — Cron 定时 AI 狩猎机 (DeepSeek + Supabase)
 ```
 
 详细架构见 [`ARCHITECTURE.md`](ARCHITECTURE.md)
@@ -85,6 +101,26 @@
 | icon | text | Favicon URL |
 | category_id | uuid | 所属分类 |
 | status | text | APPROVED/PENDING/REJECTED |
+
+---
+
+## 部署 AI 狩猎机
+
+```bash
+# 1. 申请 DeepSeek API Key: https://platform.deepseek.com/
+#    充值 1 元够跑半年
+
+# 2. CF Dashboard → Workers & Pages → 新建 Worker
+#    名称: ai-hunter
+#    粘贴 api/ai-hunter.js 内容
+
+# 3. Settings → Variables → 添加环境变量:
+#    DEEPSEEK_API_KEY   = sk-你的key
+#    SUPABASE_URL       = https://ltxxqgdzwdxsmyttrndh.supabase.co
+#    SUPABASE_ANON_KEY  = sb_publishable_dEXB1daaGCziI29i3hDJAA_ctgmK-1S
+
+# 4. Triggers → Cron Triggers → 添加 "0 3 * * *"
+```
 
 ---
 
@@ -123,6 +159,8 @@ Cloudflare Workers 自动部署。
 - [x] UGC 提交系统
 - [x] 管理员审核后台
 - [x] URL 自动解析引擎
+- [x] Umami 无痕分析雷达
+- [x] AI 全自动狩猎机 (Cron + DeepSeek)
 - [ ] 用户注册/投稿积分
 - [ ] 站点搜索功能
 - [ ] 站点点击统计

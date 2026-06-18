@@ -1,5 +1,114 @@
 # PureNav 架构文档
 
+## 系统全景
+
+```
+                          ┌─────────────────────┐
+                          │    Umami Cloud       │
+                          │  (极简无痕分析雷达)    │
+                          │  script.js < 2KB     │
+                          └────────┬────────────┘
+                                   │ 自动上报
+                                   ▼
+┌──────────────────────────────────────────────────────────────────┐
+│                    Cloudflare Workers                            │
+│                                                                  │
+│  go.helloajunjie.workers.dev/                                    │
+│    ├── /          → index.html   (主站 + Umami 雷达)              │
+│    ├── /submit    → submit.html  (游客提交)                       │
+│    ├── /review    → review.html  (管理员审核)                     │
+│    └── /api/parse → url-parser.js (HTMLRewriter 解析)            │
+│                                                                  │
+│  ⏰ Cron: 0 3 * * *                                              │
+│    └── ai-hunter.js (全自动 AI 狩猎机)                            │
+│         ├── ProductHunt API → 每日 Top 5                         │
+│         ├── DeepSeek API → AI 提纯 + 分类匹配                     │
+│         └── Supabase INSERT → status='PENDING'                   │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+## 新增组件
+
+### 🟢 Umami 雷达（B）
+
+| 项目 | 说明 |
+|------|------|
+| 脚本位置 | [`index.html`](index.html) `<head>` 第 7 行 |
+| 服务商 | Umami Cloud (cloud.umami.is) |
+| 脚本大小 | < 2KB，defer 异步加载 |
+| 数据 | 访客国家、设备、页面浏览、点击事件 |
+| 隐私 | 无需 Cookie 弹窗，GDPR 合规 |
+
+### 🔴 AI 狩猎机（C）
+
+| 项目 | 说明 |
+|------|------|
+| 文件 | [`api/ai-hunter.js`](api/ai-hunter.js) |
+| 触发 | Cloudflare Cron Triggers `0 3 * * *` (每天 UTC 3:00) |
+| 数据源 | ProductHunt GraphQL API + 兜底列表 |
+| AI 引擎 | DeepSeek API (`deepseek-chat` 模型) |
+| 输出 | Supabase `sites` 表，status=`PENDING` |
+| 环境变量 | `DEEPSEEK_API_KEY`, `SUPABASE_URL`, `SUPABASE_ANON_KEY` |
+
+#### 部署 AI 狩猎机
+
+```bash
+# 1. 申请 DeepSeek API Key: https://platform.deepseek.com/
+#    充值 1 元够跑半年
+
+# 2. CF Dashboard → Workers & Pages → 新建 Worker
+#    名称: ai-hunter
+#    粘贴 api/ai-hunter.js 内容
+
+# 3. Settings → Variables → 添加:
+#    DEEPSEEK_API_KEY   = sk-你的key
+#    SUPABASE_URL       = https://ltxxqgdzwdxsmyttrndh.supabase.co
+#    SUPABASE_ANON_KEY  = sb_publishable_dEXB1daaGCziI29i3hDJAA_ctgmK-1S
+
+# 4. Triggers → Cron Triggers → 添加 "0 3 * * *"
+```
+
+## 完整数据流
+
+```
+                    ┌──────────┐
+                    │ 游客提交  │
+                    │ submit   │
+                    └────┬─────┘
+                         │ INSERT status='PENDING'
+                         ▼
+┌──────────┐    ┌──────────────────┐    ┌──────────┐
+│ AI 狩猎机 │───▶│  Supabase 数据库  │◀───│ 管理员审核 │
+│ ai-hunter│    │  sites 表        │    │ review   │
+│ Cron 3AM  │    │  status:         │    │ Y / N    │
+└──────────┘    │  • PENDING       │    └──────────┘
+                │  • APPROVED ◀────┘
+                │  • REJECTED       │
+                └────────┬──────────┘
+                         │ SELECT status='APPROVED'
+                         ▼
+                    ┌──────────┐     ┌────────────┐
+                    │  主站     │────▶│  Umami 雷达 │
+                    │ index    │     │  实时分析   │
+                    └──────────┘     └────────────┘
+```
+
+## 文件清单
+
+| 文件 | 用途 | 技术 |
+|------|------|------|
+| [`index.html`](index.html) | 主站入口（禅意导航 + Umami 雷达） | Vue3 + Tailwind + Supabase |
+| [`zen.html`](zen.html) | 同 index.html（历史保留） | Vue3 + Tailwind + Supabase |
+| [`submit.html`](submit.html) | 游客提交页面 | Vue3 + CF Worker + Supabase |
+| [`review.html`](review.html) | 管理员审核后台 | Vue3 + Supabase Auth |
+| [`api/url-parser.js`](api/url-parser.js) | URL 解析 Worker | HTMLRewriter |
+| [`api/ai-hunter.js`](api/ai-hunter.js) | 全自动 AI 狩猎机 (Cron) | DeepSeek + Supabase |
+| [`api/parse.js`](api/parse.js) | 旧版解析引擎（已废弃） | Node.js + cheerio |
+| [`init_ai_navigation.sql`](init_ai_navigation.sql) | 全量数据 SQL | PostgreSQL |
+| [`ZenDirectory.vue`](ZenDirectory.vue) | Vue SFC 组件 | Vue3 `<script setup>` |
+| [`MegaMenu.vue`](MegaMenu.vue) | 旧版菜单组件（已废弃） | Vue3 Options API |
+| [`App.vue`](App.vue) | 旧版 App Shell（已废弃） | Vue3 |
+
 ## 项目概览
 
 PureNav 是一个 AI 工具导航站，采用 **静态前端 + BaaS 后端** 架构。前端部署在 Cloudflare Workers Static Assets，后端依赖 Supabase（数据库 + Auth）+ Cloudflare Workers（URL 解析引擎）。
