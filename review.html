@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>审核后台 - Tinder 式审核流</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f5f6fa;
+      color: #1a1a2e;
+      min-height: 100vh;
+    }
+
+    .header {
+      width: 100%;
+      background: #fff;
+      border-bottom: 1px solid #f0f0f0;
+      padding: 16px 40px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .logo { font-size: 22px; font-weight: 900; color: #4f6ef7; }
+    .header-nav { display: flex; gap: 20px; }
+    .header-nav a { text-decoration: none; color: #64748b; font-size: 14px; transition: color 0.15s; }
+    .header-nav a:hover { color: #4f6ef7; }
+    .header-nav a.active { color: #4f6ef7; font-weight: 600; }
+
+    .stats-bar {
+      display: flex;
+      gap: 24px;
+      padding: 20px 40px;
+      background: #fff;
+      border-bottom: 1px solid #f0f0f0;
+    }
+    .stat-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 14px;
+      color: #64748b;
+    }
+    .stat-item .num {
+      font-weight: 700;
+      font-size: 18px;
+      color: #1a1a2e;
+    }
+    .stat-item .num.pending { color: #f59e0b; }
+    .stat-item .num.approved { color: #10b981; }
+    .stat-item .num.rejected { color: #ef4444; }
+
+    .review-area {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 40px 20px;
+      min-height: calc(100vh - 140px);
+      position: relative;
+    }
+
+    /* 卡片容器 */
+    .card-stack {
+      position: relative;
+      width: 520px;
+      height: 360px;
+      margin-bottom: 32px;
+    }
+
+    .review-card {
+      position: absolute;
+      inset: 0;
+      background: #fff;
+      border-radius: 20px;
+      padding: 32px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.06);
+      border: 1px solid #f0f0f0;
+      display: flex;
+      flex-direction: column;
+      transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      cursor: grab;
+      user-select: none;
+      will-change: transform;
+    }
+    .review-card:active { cursor: grabbing; }
+    .review-card.dragging {
+      box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+    }
+    .review-card.approving {
+      transform: translateX(200px) rotate(8deg);
+      opacity: 0;
+    }
+    .review-card.rejecting {
+      transform: translateX(-200px) rotate(-8deg);
+      opacity: 0;
+    }
+
+    .card-top {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+    .card-icon {
+      width: 52px; height: 52px;
+      border-radius: 12px;
+      background: #f8f9ff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      flex-shrink: 0;
+      overflow: hidden;
+    }
+    .card-icon img { width: 100%; height: 100%; object-fit: contain; padding: 6px; }
+    .card-icon .fallback { font-size: 22px; }
+    .card-meta { flex: 1; min-width: 0; }
+    .card-title {
+      font-size: 20px;
+      font-weight: 700;
+      color: #1a1a2e;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .card-domain {
+      font-size: 13px;
+      color: #94a3b8;
+      margin-top: 2px;
+    }
+    .card-time {
+      font-size: 12px;
+      color: #cbd5e1;
+      white-space: nowrap;
+    }
+
+    .card-desc {
+      font-size: 14px;
+      color: #64748b;
+      line-height: 1.6;
+      flex: 1;
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      margin-bottom: 16px;
+    }
+
+    .card-url {
+      font-size: 12px;
+      color: #4f6ef7;
+      word-break: break-all;
+      padding: 8px 12px;
+      background: #f8f9ff;
+      border-radius: 8px;
+      margin-top: auto;
+    }
+
+    /* 操作按钮 */
+    .action-bar {
+      display: flex;
+      gap: 24px;
+      align-items: center;
+    }
+    .action-btn {
+      width: 64px; height: 64px;
+      border-radius: 50%;
+      border: none;
+      cursor: pointer;
+      font-size: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s ease;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+    }
+    .action-btn:hover {
+      transform: scale(1.1);
+    }
+    .action-btn:active {
+      transform: scale(0.95);
+    }
+    .action-btn.reject {
+      background: #fff;
+      color: #ef4444;
+      border: 2px solid #fecaca;
+    }
+    .action-btn.reject:hover {
+      background: #fef2f2;
+      box-shadow: 0 4px 16px rgba(239,68,68,0.2);
+    }
+    .action-btn.approve {
+      background: #fff;
+      color: #10b981;
+      border: 2px solid #a7f3d0;
+    }
+    .action-btn.approve:hover {
+      background: #ecfdf5;
+      box-shadow: 0 4px 16px rgba(16,185,129,0.2);
+    }
+    .action-btn.skip {
+      width: 48px; height: 48px;
+      font-size: 18px;
+      color: #94a3b8;
+      border: 2px solid #e2e8f0;
+      background: #fff;
+    }
+    .action-btn.skip:hover {
+      background: #f8fafc;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+    }
+
+    .keyboard-hint {
+      margin-top: 20px;
+      font-size: 13px;
+      color: #94a3b8;
+      display: flex;
+      gap: 20px;
+    }
+    .keyboard-hint kbd {
+      padding: 2px 8px;
+      background: #f1f5f9;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: 600;
+      color: #64748b;
+      border: 1px solid #e2e8f0;
+    }
+
+    /* 空状态 */
+    .empty-state {
+      text-align: center;
+      padding: 80px 20px;
+      color: #94a3b8;
+    }
+    .empty-state .icon { font-size: 64px; margin-bottom: 16px; }
+    .empty-state h3 { font-size: 20px; color: #64748b; margin-bottom: 8px; }
+    .empty-state p { font-size: 14px; }
+
+    /* 审核记录 */
+    .history-section {
+      width: 100%;
+      max-width: 720px;
+      margin-top: 40px;
+    }
+    .history-title {
+      font-size: 16px;
+      font-weight: 700;
+      color: #94a3b8;
+      margin-bottom: 12px;
+      padding: 0 8px;
+    }
+    .history-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .history-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 16px;
+      background: #fff;
+      border-radius: 12px;
+      border: 1px solid #f0f0f0;
+      font-size: 13px;
+    }
+    .history-item .h-icon {
+      width: 28px; height: 28px;
+      border-radius: 6px;
+      background: #f8f9ff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+    .history-item .h-icon img { width: 100%; height: 100%; object-fit: contain; padding: 3px; }
+    .history-item .h-name { flex: 1; font-weight: 600; color: #1a1a2e; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .history-item .h-status {
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-weight: 600;
+    }
+    .history-item .h-status.approved { background: #ecfdf5; color: #10b981; }
+    .history-item .h-status.rejected { background: #fef2f2; color: #ef4444; }
+    .history-item .h-time { color: #cbd5e1; font-size: 12px; white-space: nowrap; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="logo">NAVHUB · 审核</div>
+    <div class="header-nav">
+      <a href="./index.html">导航</a>
+      <a href="./submit.html">推荐站点</a>
+      <a href="./review.html" class="active">审核后台</a>
+    </div>
+  </div>
+
+  <div class="stats-bar">
+    <div class="stat-item">待审核 <span class="num pending" id="statPending">0</span></div>
+    <div class="stat-item">已通过 <span class="num approved" id="statApproved">0</span></div>
+    <div class="stat-item">已拒绝 <span class="num rejected" id="statRejected">0</span></div>
+  </div>
+
+  <div class="review-area" id="reviewArea">
+    <!-- 卡片堆 -->
+    <div class="card-stack" id="cardStack">
+      <div class="review-card" id="reviewCard">
+        <div class="card-top">
+          <div class="card-icon" id="cardIcon">
+            <span class="fallback">🔗</span>
+          </div>
+          <div class="card-meta">
+            <div class="card-title" id="cardTitle"></div>
+            <div class="card-domain" id="cardDomain"></div>
+          </div>
+          <div class="card-time" id="cardTime"></div>
+        </div>
+        <div class="card-desc" id="cardDesc"></div>
+        <div class="card-url" id="cardUrl"></div>
+      </div>
+    </div>
+
+    <!-- 空状态 -->
+    <div class="empty-state" id="emptyState" style="display:none">
+      <div class="icon">🎉</div>
+      <h3>全部审核完毕</h3>
+      <p>所有待审核站点已处理完成</p>
+    </div>
+
+    <!-- 操作按钮 -->
+    <div class="action-bar" id="actionBar">
+      <button class="action-btn reject" id="btnReject" title="拒绝 (N)">✕</button>
+      <button class="action-btn skip" id="btnSkip" title="跳过">↻</button>
+      <button class="action-btn approve" id="btnApprove" title="通过 (Y)">✓</button>
+    </div>
+
+    <div class="keyboard-hint">
+      <span><kbd>Y</kbd> 通过</span>
+      <span><kbd>N</kbd> 拒绝</span>
+      <span><kbd>Space</kbd> 跳过</span>
+    </div>
+
+    <!-- 审核记录 -->
+    <div class="history-section" id="historySection">
+      <div class="history-title">最近审核记录</div>
+      <div class="history-list" id="historyList"></div>
+    </div>
+  </div>
+
+  <script>
+    // ===== 模拟数据 =====
+    const mockSubmissions = [
+      {
+        id: 's1',
+        url: 'https://github.com',
+        title: 'GitHub: Let\'s build from here',
+        description: 'GitHub is the world\'s largest software development platform. Host code, manage projects, and build software alongside millions of developers.',
+        iconUrl: 'https://github.githubassets.com/favicons/favicon.svg',
+        submitterId: null,
+        status: 'PENDING',
+        createdAt: new Date(Date.now() - 1000 * 60 * 3).toISOString()
+      },
+      {
+        id: 's2',
+        url: 'https://dribbble.com',
+        title: 'Dribbble - Design Community',
+        description: 'Dribbble is the leading destination to find and showcase creative work. Browse millions of designs in UI/UX, graphic, branding, illustration and more.',
+        iconUrl: 'https://cdn.dribbble.com/assets/favicon-b385251e6b6b1e6c1f1f5c2b3c8c7c7c.ico',
+        submitterId: null,
+        status: 'PENDING',
+        createdAt: new Date(Date.now() - 1000 * 60 * 8).toISOString()
+      },
+      {
+        id: 's3',
+        url: 'https://producthunt.com',
+        title: 'Product Hunt – The best new products',
+        description: 'Product Hunt is a curation of the best new products, every day. Discover the latest mobile apps, websites, and technology products.',
+        iconUrl: 'https://ph-static.imgix.net/ph-favicon.ico',
+        submitterId: null,
+        status: 'PENDING',
+        createdAt: new Date(Date.now() - 1000 * 60 * 15).toISOString()
+      },
+      {
+        id: 's4',
+        url: 'https://stackoverflow.com',
+        title: 'Stack Overflow',
+        description: 'The largest, most trusted online community for developers to learn, share their knowledge, and build their careers.',
+        iconUrl: 'https://stackoverflow.com/favicon.ico',
+        submitterId: null,
+        status: 'PENDING',
+        createdAt: new Date(Date.now() - 1000 * 60 * 25).toISOString()
+      },
+      {
+        id: 's5',
+        url: 'https://vercel.com',
+        title: 'Vercel: Develop. Preview. Ship.',
+        description: 'Vercel combines the best developer experience with an obsessive focus on end-user performance. Deploy your frontend apps in seconds.',
+        iconUrl: 'https://vercel.com/favicon.ico',
+        submitterId: null,
+        status: 'PENDING',
+        createdAt: new Date(Date.now() - 1000 * 60 * 40).toISOString()
+      }
+    ]
+
+    // ===== 状态 =====
+    let queue = []
+    let currentIndex = 0
+    let history = []
+    let isAnimating = false
+
+    const card = document.getElementById('reviewCard')
+    const cardIcon = document.getElementById('cardIcon')
+    const cardTitle = document.getElementById('cardTitle')
+    const cardDomain = document.getElementById('cardDomain')
+    const cardDesc = document.getElementById('cardDesc')
+    const cardUrl = document.getElementById('cardUrl')
+    const cardTime = document.getElementById('cardTime')
+    const emptyState = document.getElementById('emptyState')
+    const actionBar = document.getElementById('actionBar')
+    const cardStack = document.getElementById('cardStack')
+    const historyList = document.getElementById('historyList')
+    const statPending = document.getElementById('statPending')
+    const statApproved = document.getElementById('statApproved')
+    const statRejected = document.getElementById('statRejected')
+
+    function formatTime(iso) {
+      const diff = Date.now() - new Date(iso).getTime()
+      const mins = Math.floor(diff / 60000)
+      if (mins < 1) return '刚刚'
+      if (mins < 60) return `${mins} 分钟前`
+      const hours = Math.floor(mins / 60)
+      if (hours < 24) return `${hours} 小时前`
+      return `${Math.floor(hours / 24)} 天前`
+    }
+
+    function getDomain(url) {
+      try { return new URL(url).hostname.replace(/^www\./, '') } catch { return url }
+    }
+
+    function renderCard(item) {
+      cardIcon.innerHTML = item.iconUrl
+        ? `<img src="${item.iconUrl}" onerror="this.parentElement.innerHTML='<span class=fallback>🔗</span>'" />`
+        : '<span class="fallback">🔗</span>'
+      cardTitle.textContent = item.title
+      cardDomain.textContent = getDomain(item.url)
+      cardDesc.textContent = item.description
+      cardUrl.textContent = item.url
+      cardTime.textContent = formatTime(item.createdAt)
+    }
+
+    function updateStats() {
+      const pending = queue.length - currentIndex
+      const approved = history.filter(h => h.action === 'approved').length
+      const rejected = history.filter(h => h.action === 'rejected').length
+      statPending.textContent = pending
+      statApproved.textContent = approved
+      statRejected.textContent = rejected
+    }
+
+    function renderHistory() {
+      historyList.innerHTML = history.slice(-10).reverse().map(h => `
+        <div class="history-item">
+          <div class="h-icon">
+            ${h.item.iconUrl
+              ? `<img src="${h.item.iconUrl}" onerror="this.parentElement.innerHTML='🔗'" />`
+              : '🔗'}
+          </div>
+          <span class="h-name">${h.item.title}</span>
+          <span class="h-status ${h.action}">${h.action === 'approved' ? '已通过' : '已拒绝'}</span>
+          <span class="h-time">${formatTime(h.time)}</span>
+        </div>
+      `).join('')
+    }
+
+    function nextCard() {
+      currentIndex++
+      if (currentIndex >= queue.length) {
+        cardStack.style.display = 'none'
+        actionBar.style.display = 'none'
+        emptyState.style.display = 'block'
+        updateStats()
+        return
+      }
+      card.classList.remove('approving', 'rejecting')
+      // 重置拖拽状态
+      card.style.transform = ''
+      card.style.opacity = ''
+      renderCard(queue[currentIndex])
+      updateStats()
+    }
+
+    function approve() {
+      if (isAnimating || currentIndex >= queue.length) return
+      isAnimating = true
+      const item = queue[currentIndex]
+      card.classList.add('approving')
+      history.push({ item, action: 'approved', time: new Date().toISOString() })
+      renderHistory()
+      setTimeout(() => {
+        nextCard()
+        isAnimating = false
+      }, 350)
+    }
+
+    function reject() {
+      if (isAnimating || currentIndex >= queue.length) return
+      isAnimating = true
+      const item = queue[currentIndex]
+      card.classList.add('rejecting')
+      history.push({ item, action: 'rejected', time: new Date().toISOString() })
+      renderHistory()
+      setTimeout(() => {
+        nextCard()
+        isAnimating = false
+      }, 350)
+    }
+
+    function skip() {
+      if (isAnimating || currentIndex >= queue.length) return
+      isAnimating = true
+      // 把当前项移到末尾
+      const item = queue.splice(currentIndex, 1)[0]
+      queue.push(item)
+      renderCard(queue[currentIndex])
+      updateStats()
+      setTimeout(() => { isAnimating = false }, 200)
+    }
+
+    // ===== 拖拽支持 =====
+    let isDragging = false
+    let startX = 0
+    let startY = 0
+    let currentX = 0
+
+    card.addEventListener('mousedown', e => {
+      if (isAnimating) return
+      isDragging = true
+      startX = e.clientX
+      startY = e.clientY
+      currentX = 0
+      card.classList.add('dragging')
+      card.style.transition = 'none'
+    })
+
+    document.addEventListener('mousemove', e => {
+      if (!isDragging) return
+      const dx = e.clientX - startX
+      currentX = dx
+      const rotate = Math.min(Math.max(dx * 0.05, -15), 15)
+      card.style.transform = `translateX(${dx}px) rotate(${rotate}deg)`
+      card.style.opacity = Math.max(1 - Math.abs(dx) / 400, 0.4)
+    })
+
+    document.addEventListener('mouseup', e => {
+      if (!isDragging) return
+      isDragging = false
+      card.classList.remove('dragging')
+      card.style.transition = ''
+
+      if (currentX > 120) {
+        approve()
+      } else if (currentX < -120) {
+        reject()
+      } else {
+        card.style.transform = ''
+        card.style.opacity = ''
+      }
+      currentX = 0
+    })
+
+    // ===== 键盘快捷键 =====
+    document.addEventListener('keydown', e => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return
+      if (e.key === 'y' || e.key === 'Y') {
+        e.preventDefault()
+        approve()
+      } else if (e.key === 'n' || e.key === 'N') {
+        e.preventDefault()
+        reject()
+      } else if (e.key === ' ') {
+        e.preventDefault()
+        skip()
+      }
+    })
+
+    // ===== 按钮事件 =====
+    document.getElementById('btnApprove').addEventListener('click', approve)
+    document.getElementById('btnReject').addEventListener('click', reject)
+    document.getElementById('btnSkip').addEventListener('click', skip)
+
+    // ===== 初始化 =====
+    queue = [...mockSubmissions]
+    currentIndex = 0
+    renderCard(queue[0])
+    updateStats()
+  </script>
+</body>
+</html>

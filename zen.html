@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PureNav - 禅意导航</title>
+  <!-- 引入 Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .custom-scrollbar::-webkit-scrollbar { width: 5px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #e5e7eb; border-radius: 10px; }
+    .custom-scrollbar:hover::-webkit-scrollbar-thumb { background-color: #d1d5db; }
+  </style>
+
+  <!-- 💡 核心：使用 Import Map 优雅地引入 Vue3 和 Supabase -->
+  <script type="importmap">
+    {
+      "imports": {
+        "vue": "https://unpkg.com/vue@3/dist/vue.esm-browser.js",
+        "@supabase/supabase-js": "https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm"
+      }
+    }
+  </script>
+</head>
+<body class="bg-[#f9fafb] text-gray-800 font-sans overflow-hidden">
+
+  <div id="app" class="flex h-screen w-full">
+    <!-- 左侧导航 -->
+    <aside class="w-64 bg-white border-r border-gray-100 flex flex-col z-10 shadow-sm">
+      <div class="h-16 flex items-center px-6 border-b border-gray-50 mb-4">
+        <span class="text-xl font-black tracking-tighter">Pure<span class="text-blue-600">Nav</span></span>
+      </div>
+      <div class="flex-1 overflow-y-auto custom-scrollbar px-3 space-y-1 pb-8">
+        <div v-for="l1 in categories" :key="l1.id" class="flex flex-col">
+          <button @click="scrollTo(l1.id, true)" :class="['w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all', activeL1 === l1.id ? 'bg-blue-50/80 text-blue-600' : 'text-gray-600 hover:bg-gray-50']">
+            <span class="text-base">{{ l1.icon }}</span> {{ l1.name }}
+          </button>
+          <div class="grid transition-all duration-300" :style="{ gridTemplateRows: activeL1 === l1.id ? '1fr' : '0fr' }">
+            <div class="overflow-hidden pl-10 pr-2 py-1.5 flex flex-col gap-0.5">
+              <button v-for="l2 in l1.children" :key="l2.id" @click.stop="scrollTo(l2.id, false)" class="text-left text-xs py-2 text-gray-400 hover:text-blue-500">
+                {{ l2.name }}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- 右侧内容 -->
+    <main id="scrollContainer" class="flex-1 overflow-y-auto custom-scrollbar relative scroll-smooth bg-white">
+      <div v-if="!isDataLoaded" class="flex items-center justify-center h-full text-gray-400">
+        正在连接数字云端...
+      </div>
+      <div v-else class="w-full px-8 lg:px-12 py-8 space-y-10">
+        <section v-for="l1 in categories" :key="l1.id" :id="l1.id" class="scroll-section scroll-mt-8 space-y-8">
+          <h2 class="text-2xl font-bold flex items-center gap-3 text-gray-900 border-b border-gray-50 pb-3">
+            <span class="text-2xl">{{ l1.icon }}</span> {{ l1.name }}
+          </h2>
+          <div v-for="l2 in l1.children" :key="l2.id" :id="l2.id" class="scroll-mt-6">
+            <h3 class="text-base font-semibold text-gray-700 mb-3 pl-2 border-l-2 border-gray-300">{{ l2.name }}</h3>
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
+              <a v-for="tool in l2.tools" :key="tool.name" :href="tool.url" target="_blank" class="group bg-white rounded-xl p-3.5 border border-gray-100 shadow-[0_2px_8px_rgba(0,0,0,0.02)] hover:shadow-lg hover:-translate-y-1 transition-all flex flex-col gap-2.5">
+                <div class="flex items-center gap-3">
+                  <img :src="tool.icon" class="w-9 h-9 rounded-lg bg-gray-50 object-cover border border-gray-50" />
+                  <span class="font-medium text-gray-900 group-hover:text-blue-600 line-clamp-1 text-sm">{{ tool.name }}</span>
+                </div>
+                <p class="text-xs text-gray-500 leading-relaxed line-clamp-2">{{ tool.desc }}</p>
+              </a>
+            </div>
+          </div>
+        </section>
+        <div class="h-[50vh]"></div>
+      </div>
+    </main>
+  </div>
+
+  <!-- 💡 Vue 3 业务逻辑 -->
+  <script type="module">
+    import { createApp, ref, onMounted, nextTick } from 'vue';
+    import { createClient } from '@supabase/supabase-js';
+
+    // 🚨 请在这里填入你真实的 URL 和 KEY
+    const supabaseUrl = 'https://ltxxqgdzwdxsmyttrndh.supabase.co'; 
+    const supabaseKey = 'sb_publishable_dEXB1daaGCziI29i3hDJAA_ctgmK-1S'; 
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    createApp({
+      setup() {
+        const categories = ref([]);
+        const isDataLoaded = ref(false);
+        const activeL1 = ref(null);
+        let observer = null;
+        let isClickScrolling = false;
+
+        onMounted(async () => {
+          console.log('🚀 发起 Supabase 连接...');
+          try {
+            const [catsRes, sitesRes] = await Promise.all([
+              supabase.from('categories').select('*').order('sort_order', { ascending: false }),
+              supabase.from('sites').select('*').eq('status', 'APPROVED')
+            ]);
+
+            if (catsRes.error) throw new Error(catsRes.error.message);
+            if (sitesRes.error) throw new Error(sitesRes.error.message);
+
+            console.log('✅ 数据拉取成功！组装树形结构...');
+            const treeData = buildTree(catsRes.data, sitesRes.data);
+            categories.value = treeData;
+          
+            if (treeData.length > 0) activeL1.value = treeData[0].id;
+            isDataLoaded.value = true;
+
+            await nextTick();
+            initScrollSpy();
+          } catch (error) {
+            console.error('❌ 数据流转中断:', error);
+            alert("数据库连接失败，请按 F12 查看控制台报错");
+          }
+        });
+
+        function buildTree(flatCats, flatSites) {
+          const l2Map = {};
+          flatCats.filter(c => c.parent_id).forEach(c => {
+            l2Map[c.id] = { id: c.id, name: c.name, tools: [] };
+          });
+          flatSites.forEach(s => {
+            if (l2Map[s.category_id]) {
+              l2Map[s.category_id].tools.push({
+                name: s.name, desc: s.description, url: s.url, icon: s.icon
+              });
+            }
+          });
+          return flatCats.filter(c => !c.parent_id).map(l1 => ({
+            id: l1.id, name: l1.name, icon: l1.icon,
+            children: flatCats.filter(c => c.parent_id === l1.id).map(c => l2Map[c.id])
+          }));
+        }
+
+        function initScrollSpy() {
+          const scrollContainer = document.getElementById('scrollContainer');
+          if (!scrollContainer) return;
+          const options = { root: scrollContainer, rootMargin: '-30% 0px -60% 0px', threshold: 0 };
+          observer = new IntersectionObserver((entries) => {
+            if (isClickScrolling) return;
+            entries.forEach(entry => {
+              if (entry.isIntersecting) activeL1.value = entry.target.id;
+            });
+          }, options);
+          document.querySelectorAll('.scroll-section').forEach(sec => observer.observe(sec));
+        }
+
+        const scrollTo = (id, isL1 = true) => {
+          if (isL1) activeL1.value = id;
+          const target = document.getElementById(id);
+          if (target) {
+            isClickScrolling = true;
+            target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            setTimeout(() => { isClickScrolling = false; }, 800);
+          }
+        };
+
+        return { categories, isDataLoaded, activeL1, scrollTo };
+      }
+    }).mount('#app');
+  </script>
+</body>
+</html>

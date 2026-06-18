@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>推荐站点 - Magic Input</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f5f6fa;
+      color: #1a1a2e;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .header {
+      width: 100%;
+      background: #fff;
+      border-bottom: 1px solid #f0f0f0;
+      padding: 16px 40px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .logo { font-size: 22px; font-weight: 900; color: #4f6ef7; }
+    .header-nav { display: flex; gap: 20px; }
+    .header-nav a { text-decoration: none; color: #64748b; font-size: 14px; transition: color 0.15s; }
+    .header-nav a:hover { color: #4f6ef7; }
+
+    .main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 60px 20px;
+      max-width: 720px;
+      width: 100%;
+    }
+
+    .hero-title {
+      font-size: 36px;
+      font-weight: 900;
+      text-align: center;
+      margin-bottom: 8px;
+      background: linear-gradient(135deg, #4f6ef7, #a855f7);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .hero-sub {
+      font-size: 16px;
+      color: #94a3b8;
+      text-align: center;
+      margin-bottom: 40px;
+    }
+
+    /* Magic Input */
+    .magic-input-wrap {
+      width: 100%;
+      position: relative;
+    }
+    .magic-input {
+      width: 100%;
+      padding: 20px 28px;
+      font-size: 18px;
+      border: 2px solid #e2e8f0;
+      border-radius: 20px;
+      outline: none;
+      background: rgba(255,255,255,0.8);
+      backdrop-filter: blur(12px);
+      transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+    }
+    .magic-input:focus {
+      border-color: #4f6ef7;
+      box-shadow: 0 0 0 4px rgba(79,110,247,0.1), 0 8px 20px -4px rgba(79,110,247,0.15);
+    }
+    .magic-input::placeholder {
+      color: #cbd5e1;
+      font-weight: 400;
+    }
+    .magic-hint {
+      margin-top: 12px;
+      font-size: 13px;
+      color: #94a3b8;
+      text-align: center;
+    }
+
+    /* 解析状态 */
+    .parse-status {
+      margin-top: 24px;
+      width: 100%;
+      display: none;
+    }
+    .parse-status.active { display: block; }
+
+    .skeleton-card {
+      background: #fff;
+      border-radius: 16px;
+      padding: 24px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.04);
+      display: flex;
+      gap: 20px;
+      align-items: center;
+    }
+    .skeleton-icon {
+      width: 56px; height: 56px;
+      border-radius: 12px;
+      background: linear-gradient(90deg, #f0f0f0 25%, #e8e8e8 50%, #f0f0f0 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.5s infinite;
+      flex-shrink: 0;
+    }
+    .skeleton-text { flex: 1; display: flex; flex-direction: column; gap: 10px; }
+    .skeleton-line {
+      height: 14px;
+      background: linear-gradient(90deg, #f0f0f0 25%, #e8e8e8 50%, #f0f0f0 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.5s infinite;
+      border-radius: 4px;
+    }
+    .skeleton-line:nth-child(1) { width: 60%; }
+    .skeleton-line:nth-child(2) { width: 85%; }
+
+    /* 解析结果卡片 */
+    .result-card {
+      background: #fff;
+      border-radius: 16px;
+      padding: 24px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.04);
+      display: flex;
+      gap: 20px;
+      align-items: flex-start;
+      border: 1px solid #f0f0f0;
+      transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    .result-card.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    .result-card:hover {
+      box-shadow: 0 8px 24px rgba(0,0,0,0.06);
+      border-color: #e8ecff;
+    }
+    .result-icon {
+      width: 56px; height: 56px;
+      border-radius: 12px;
+      flex-shrink: 0;
+      background: #f8f9ff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 28px;
+      overflow: hidden;
+    }
+    .result-icon img { width: 100%; height: 100%; object-fit: contain; padding: 8px; }
+    .result-icon .fallback { font-size: 24px; }
+    .result-body { flex: 1; min-width: 0; }
+    .result-title {
+      font-size: 18px;
+      font-weight: 700;
+      color: #1a1a2e;
+      margin-bottom: 4px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .result-desc {
+      font-size: 14px;
+      color: #64748b;
+      line-height: 1.5;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .result-url {
+      font-size: 12px;
+      color: #94a3b8;
+      margin-top: 6px;
+      word-break: break-all;
+    }
+    .result-actions {
+      display: flex;
+      gap: 12px;
+      margin-top: 20px;
+      justify-content: flex-end;
+    }
+    .btn {
+      padding: 10px 28px;
+      border-radius: 12px;
+      font-size: 15px;
+      font-weight: 600;
+      border: none;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .btn-primary {
+      background: #4f6ef7;
+      color: #fff;
+    }
+    .btn-primary:hover {
+      background: #3b5de7;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(79,110,247,0.3);
+    }
+    .btn-secondary {
+      background: #f1f5f9;
+      color: #64748b;
+    }
+    .btn-secondary:hover {
+      background: #e2e8f0;
+    }
+    .btn-success {
+      background: #10b981;
+      color: #fff;
+    }
+    .btn-success:hover {
+      background: #059669;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(16,185,129,0.3);
+    }
+
+    /* 错误状态 */
+    .parse-error {
+      margin-top: 24px;
+      padding: 16px 20px;
+      background: #fef2f2;
+      border: 1px solid #fecaca;
+      border-radius: 12px;
+      color: #dc2626;
+      font-size: 14px;
+      display: none;
+    }
+    .parse-error.active { display: block; }
+
+    /* 成功提示 */
+    .success-toast {
+      position: fixed;
+      bottom: 40px;
+      left: 50%;
+      transform: translateX(-50%) translateY(80px);
+      background: #10b981;
+      color: #fff;
+      padding: 14px 32px;
+      border-radius: 14px;
+      font-weight: 600;
+      font-size: 15px;
+      box-shadow: 0 8px 24px rgba(16,185,129,0.3);
+      opacity: 0;
+      transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+      pointer-events: none;
+    }
+    .success-toast.active {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    @keyframes shimmer {
+      0% { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
+
+    /* 手动补全表单 */
+    .manual-form {
+      margin-top: 24px;
+      width: 100%;
+      display: none;
+    }
+    .manual-form.active { display: block; }
+    .manual-form label {
+      font-size: 13px;
+      font-weight: 600;
+      color: #64748b;
+      display: block;
+      margin-bottom: 6px;
+    }
+    .manual-form input, .manual-form textarea {
+      width: 100%;
+      padding: 12px 16px;
+      border: 1px solid #e2e8f0;
+      border-radius: 10px;
+      font-size: 14px;
+      outline: none;
+      transition: border-color 0.2s;
+      font-family: inherit;
+    }
+    .manual-form input:focus, .manual-form textarea:focus {
+      border-color: #4f6ef7;
+      box-shadow: 0 0 0 3px rgba(79,110,247,0.08);
+    }
+    .manual-form .field { margin-bottom: 16px; }
+    .manual-form textarea { resize: vertical; min-height: 60px; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="logo">NAVHUB</div>
+    <div class="header-nav">
+      <a href="./index.html">导航</a>
+      <a href="./submit.html">推荐站点</a>
+      <a href="./review.html">审核后台</a>
+    </div>
+  </div>
+
+  <div class="main">
+    <h1 class="hero-title">分享一个很酷的网址</h1>
+    <p class="hero-sub">粘贴链接，剩下的交给我们</p>
+
+    <div class="magic-input-wrap">
+      <input
+        class="magic-input"
+        id="urlInput"
+        type="url"
+        placeholder="粘贴你想推荐的网址..."
+        autocomplete="off"
+        autocorrect="off"
+        spellcheck="false"
+      />
+    </div>
+    <p class="magic-hint">支持 Ctrl+V 粘贴自动解析 · 或直接输入后按 Enter</p>
+
+    <!-- 解析中骨架 -->
+    <div class="parse-status" id="parseStatus">
+      <div class="skeleton-card">
+        <div class="skeleton-icon"></div>
+        <div class="skeleton-text">
+          <div class="skeleton-line"></div>
+          <div class="skeleton-line"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 解析结果 -->
+    <div class="parse-status" id="resultWrap">
+      <div class="result-card" id="resultCard">
+        <div class="result-icon" id="resultIcon">
+          <span class="fallback">🔗</span>
+        </div>
+        <div class="result-body">
+          <div class="result-title" id="resultTitle"></div>
+          <div class="result-desc" id="resultDesc"></div>
+          <div class="result-url" id="resultUrl"></div>
+          <div class="result-actions">
+            <button class="btn btn-secondary" id="btnEdit">手动修改</button>
+            <button class="btn btn-primary" id="btnConfirm">确认推荐</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 手动补全表单 -->
+    <div class="manual-form" id="manualForm">
+      <div class="field">
+        <label>网站名称</label>
+        <input id="editTitle" type="text" placeholder="自动解析失败，请手动填写" />
+      </div>
+      <div class="field">
+        <label>网站描述</label>
+        <textarea id="editDesc" placeholder="简要描述这个网站"></textarea>
+      </div>
+      <div class="field">
+        <label>图标 URL（可选）</label>
+        <input id="editIcon" type="url" placeholder="https://example.com/favicon.ico" />
+      </div>
+      <div class="result-actions">
+        <button class="btn btn-secondary" id="btnCancelEdit">取消</button>
+        <button class="btn btn-primary" id="btnSaveEdit">保存并推荐</button>
+      </div>
+    </div>
+
+    <!-- 错误提示 -->
+    <div class="parse-error" id="parseError"></div>
+
+    <!-- 成功 Toast -->
+    <div class="success-toast" id="successToast">✅ 推荐成功！感谢你的分享</div>
+  </div>
+
+  <script>
+    const urlInput = document.getElementById('urlInput')
+    const parseStatus = document.getElementById('parseStatus')
+    const resultWrap = document.getElementById('resultWrap')
+    const resultCard = document.getElementById('resultCard')
+    const resultIcon = document.getElementById('resultIcon')
+    const resultTitle = document.getElementById('resultTitle')
+    const resultDesc = document.getElementById('resultDesc')
+    const resultUrl = document.getElementById('resultUrl')
+    const parseError = document.getElementById('parseError')
+    const successToast = document.getElementById('successToast')
+    const btnConfirm = document.getElementById('btnConfirm')
+    const btnEdit = document.getElementById('btnEdit')
+    const btnCancelEdit = document.getElementById('btnCancelEdit')
+    const btnSaveEdit = document.getElementById('btnSaveEdit')
+    const manualForm = document.getElementById('manualForm')
+    const editTitle = document.getElementById('editTitle')
+    const editDesc = document.getElementById('editDesc')
+    const editIcon = document.getElementById('editIcon')
+
+    let currentData = null
+
+    // 模拟解析（实际对接后端 API）
+    async function parseUrl(url) {
+      // 模拟网络延迟
+      await new Promise(r => setTimeout(r, 1200))
+
+      // 模拟不同 URL 的解析结果
+      const mockData = {
+        'github.com': {
+          title: 'GitHub: Let\'s build from here',
+          description: 'GitHub is the world\'s largest software development platform. Host code, manage projects, and build software alongside millions of developers.',
+          iconUrl: 'https://github.githubassets.com/favicons/favicon.svg'
+        },
+        'stackoverflow.com': {
+          title: 'Stack Overflow',
+          description: 'The largest, most trusted online community for developers to learn, share their knowledge, and build their careers.',
+          iconUrl: 'https://stackoverflow.com/favicon.ico'
+        },
+        'producthunt.com': {
+          title: 'Product Hunt – The best new products in tech.',
+          description: 'Product Hunt is a curation of the best new products, every day. Discover the latest mobile apps, websites, and technology products that everyone\'s talking about.',
+          iconUrl: 'https://ph-static.imgix.net/ph-favicon.ico'
+        },
+        'dribbble.com': {
+          title: 'Dribbble - Discover the World\'s Top Designers & Creative Professionals',
+          description: 'Dribbble is the leading destination to find and showcase creative work. Browse millions of designs in UI/UX, graphic, branding, illustration and more.',
+          iconUrl: 'https://cdn.dribbble.com/assets/favicon-b385251e6b6b1e6c1f1f5c2b3c8c7c7c.ico'
+        }
+      }
+
+      let hostname
+      try { hostname = new URL(url).hostname.replace(/^www\./, '') } catch { hostname = url }
+
+      const mock = mockData[hostname]
+      if (mock) {
+        return { url, ...mock }
+      }
+
+      // 模拟解析失败
+      return { url, title: '', description: '', iconUrl: '' }
+    }
+
+    function showSkeleton() {
+      parseStatus.classList.add('active')
+      resultWrap.classList.remove('active')
+      parseError.classList.remove('active')
+      manualForm.classList.remove('active')
+      resultCard.classList.remove('visible')
+    }
+
+    function showResult(data) {
+      parseStatus.classList.remove('active')
+      resultWrap.classList.add('active')
+      parseError.classList.remove('active')
+
+      currentData = data
+
+      // 图标
+      resultIcon.innerHTML = data.iconUrl
+        ? `<img src="${data.iconUrl}" onerror="this.parentElement.innerHTML='<span class=fallback>🔗</span>'" />`
+        : '<span class="fallback">🔗</span>'
+
+      resultTitle.textContent = data.title || '未知站点'
+      resultDesc.textContent = data.description || '暂无描述'
+      resultUrl.textContent = data.url
+
+      // 触发入场动画
+      requestAnimationFrame(() => {
+        resultCard.classList.add('visible')
+      })
+    }
+
+    function showError(msg) {
+      parseStatus.classList.remove('active')
+      resultWrap.classList.remove('active')
+      manualForm.classList.remove('active')
+      parseError.textContent = msg
+      parseError.classList.add('active')
+    }
+
+    function showToast() {
+      successToast.classList.add('active')
+      setTimeout(() => successToast.classList.remove('active'), 3000)
+    }
+
+    async function handleUrl(input) {
+      let url = input.trim()
+      if (!url) return
+
+      // 自动补全协议
+      if (!/^https?:\/\//i.test(url)) {
+        url = 'https://' + url
+      }
+
+      // 简单 URL 校验
+      try {
+        new URL(url)
+      } catch {
+        showError('请输入有效的网址')
+        return
+      }
+
+      showSkeleton()
+
+      try {
+        const data = await parseUrl(url)
+        if (data.title || data.description) {
+          showResult(data)
+        } else {
+          // 解析失败，展示手动补全
+          currentData = { url, title: '', description: '', iconUrl: '' }
+          parseStatus.classList.remove('active')
+          resultWrap.classList.remove('active')
+          parseError.classList.remove('active')
+          editTitle.value = ''
+          editDesc.value = ''
+          editIcon.value = ''
+          manualForm.classList.add('active')
+        }
+      } catch {
+        showError('解析失败，请稍后重试')
+      }
+    }
+
+    // 事件绑定
+    urlInput.addEventListener('paste', () => {
+      setTimeout(() => {
+        const val = urlInput.value.trim()
+        if (val) handleUrl(val)
+      }, 50)
+    })
+
+    urlInput.addEventListener('keydown', e => {
+      if (e.key === 'Enter') {
+        e.preventDefault()
+        handleUrl(urlInput.value)
+      }
+    })
+
+    btnConfirm.addEventListener('click', () => {
+      if (currentData) {
+        showToast()
+        // 重置状态
+        setTimeout(() => {
+          resultWrap.classList.remove('active')
+          urlInput.value = ''
+          currentData = null
+        }, 500)
+      }
+    })
+
+    btnEdit.addEventListener('click', () => {
+      resultWrap.classList.remove('active')
+      editTitle.value = currentData?.title || ''
+      editDesc.value = currentData?.description || ''
+      editIcon.value = currentData?.iconUrl || ''
+      manualForm.classList.add('active')
+    })
+
+    btnCancelEdit.addEventListener('click', () => {
+      manualForm.classList.remove('active')
+      if (currentData) {
+        resultWrap.classList.add('active')
+      }
+    })
+
+    btnSaveEdit.addEventListener('click', () => {
+      const title = editTitle.value.trim()
+      if (!title) {
+        editTitle.focus()
+        return
+      }
+      currentData.title = title
+      currentData.description = editDesc.value.trim()
+      currentData.iconUrl = editIcon.value.trim()
+      showResult(currentData)
+      manualForm.classList.remove('active')
+    })
+  </script>
+</body>
+</html>
