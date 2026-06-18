@@ -347,6 +347,12 @@
           <div class="result-title" id="resultTitle"></div>
           <div class="result-desc" id="resultDesc"></div>
           <div class="result-url" id="resultUrl"></div>
+          <div class="field" style="margin-top:12px">
+            <label style="font-size:13px;font-weight:600;color:#64748b;display:block;margin-bottom:6px">归属分类</label>
+            <select id="categorySelect" style="width:100%;padding:10px 14px;border:1px solid #e2e8f0;border-radius:10px;font-size:14px;outline:none;background:#fff;font-family:inherit">
+              <option value="">— 请选择分类 —</option>
+            </select>
+          </div>
           <div class="result-actions">
             <button class="btn btn-secondary" id="btnEdit">手动修改</button>
             <button class="btn btn-primary" id="btnConfirm">确认推荐</button>
@@ -382,7 +388,13 @@
     <div class="success-toast" id="successToast">✅ 推荐成功！感谢你的分享</div>
   </div>
 
-  <script>
+  <script type="module">
+    import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm'
+
+    const supabaseUrl = 'https://ltxxqgdzwdxsmyttrndh.supabase.co'
+    const supabaseKey = 'sb_publishable_dEXB1daaGCziI29i3hDJAA_ctgmK-1S'
+    const supabase = createClient(supabaseUrl, supabaseKey)
+
     const urlInput = document.getElementById('urlInput')
     const parseStatus = document.getElementById('parseStatus')
     const resultWrap = document.getElementById('resultWrap')
@@ -391,6 +403,7 @@
     const resultTitle = document.getElementById('resultTitle')
     const resultDesc = document.getElementById('resultDesc')
     const resultUrl = document.getElementById('resultUrl')
+    const categorySelect = document.getElementById('categorySelect')
     const parseError = document.getElementById('parseError')
     const successToast = document.getElementById('successToast')
     const btnConfirm = document.getElementById('btnConfirm')
@@ -403,6 +416,16 @@
     const editIcon = document.getElementById('editIcon')
 
     let currentData = null
+    let categories = []
+
+    // 🚀 加载分类列表
+    ;(async () => {
+      const { data } = await supabase.from('categories').select('*').is('parent_id', null).order('sort_order', { ascending: false })
+      if (data) {
+        categories = data
+        categorySelect.innerHTML = '<option value="">— 请选择分类 —</option>' + data.map(c => `<option value="${c.id}">${c.icon} ${c.name}</option>`).join('')
+      }
+    })()
 
     // 🚀 对接 Cloudflare Worker 解析接口
     const PARSER_API = 'https://url-parser.helloajunjie.workers.dev'
@@ -517,16 +540,43 @@
       }
     })
 
-    btnConfirm.addEventListener('click', () => {
-      if (currentData) {
-        showToast()
-        // 重置状态
-        setTimeout(() => {
-          resultWrap.classList.remove('active')
-          urlInput.value = ''
-          currentData = null
-        }, 500)
+    btnConfirm.addEventListener('click', async () => {
+      if (!currentData) return
+      const categoryId = categorySelect.value
+      if (!categoryId) {
+        categorySelect.style.borderColor = '#dc2626'
+        categorySelect.focus()
+        return
       }
+      categorySelect.style.borderColor = '#e2e8f0'
+
+      btnConfirm.disabled = true
+      btnConfirm.textContent = '提交中...'
+
+      const { error } = await supabase.from('sites').insert([{
+        url: currentData.url,
+        name: currentData.title || '未知站点',
+        description: currentData.description || '',
+        icon: currentData.iconUrl || `https://www.google.com/s2/favicons?domain=${new URL(currentData.url).hostname}&sz=64`,
+        category_id: categoryId,
+        status: 'PENDING'
+      }])
+
+      btnConfirm.disabled = false
+      btnConfirm.textContent = '确认推荐'
+
+      if (error) {
+        showError('提交失败：' + error.message)
+        return
+      }
+
+      showToast()
+      setTimeout(() => {
+        resultWrap.classList.remove('active')
+        urlInput.value = ''
+        currentData = null
+        categorySelect.value = ''
+      }, 500)
     })
 
     btnEdit.addEventListener('click', () => {
