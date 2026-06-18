@@ -107,17 +107,18 @@
 ## 部署 AI 狩猎机
 
 ```bash
-# 1. 申请 DeepSeek API Key: https://platform.deepseek.com/
+# 1. 获取 DeepSeek API Key: https://platform.deepseek.com/
 #    充值 1 元够跑半年
 
 # 2. CF Dashboard → Workers & Pages → 新建 Worker
 #    名称: ai-hunter
 #    粘贴 api/ai-hunter.js 内容
 
-# 3. Settings → Variables → 添加环境变量:
-#    DEEPSEEK_API_KEY   = sk-你的key
+# 3. Settings → Variables → 添加环境变量 (不要硬编码在代码里):
+#    DEEPSEEK_API_KEY   = sk-your-deepseek-key (在 CF 环境变量里设置)
 #    SUPABASE_URL       = https://ltxxqgdzwdxsmyttrndh.supabase.co
 #    SUPABASE_ANON_KEY  = sb_publishable_dEXB1daaGCziI29i3hDJAA_ctgmK-1S
+#    MANUAL_TRIGGER_TOKEN = (设置一个随机字符串用于手动触发)
 
 # 4. Triggers → Cron Triggers → 添加 "0 3 * * *"
 ```

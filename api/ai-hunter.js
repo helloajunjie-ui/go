@@ -4,10 +4,11 @@
 // 部署步骤:
 // 1. CF Dashboard → Workers & Pages → 新建 Worker → 命名 ai-hunter
 // 2. 粘贴本代码
-// 3. Settings → Variables → 添加环境变量:
-//    DEEPSEEK_API_KEY = sk-xxxxx
-//    SUPABASE_URL     = https://ltxxqgdzwdxsmyttrndh.supabase.co
-//    SUPABASE_ANON_KEY = sb_publishable_dEXB1daaGCziI29i3hDJAA_ctgmK-1S
+// 3. Settings → Variables → 添加环境变量 (不要硬编码在代码里):
+//    DEEPSEEK_API_KEY   = sk-your-deepseek-key (在 CF 环境变量里设置)
+//    SUPABASE_URL       = https://ltxxqgdzwdxsmyttrndh.supabase.co
+//    SUPABASE_ANON_KEY  = sb_publishable_dEXB1daaGCziI29i3hDJAA_ctgmK-1S
+//    MANUAL_TRIGGER_TOKEN = 设置一个随机字符串用于手动触发鉴权
 // 4. Triggers → Cron Triggers → 添加 "0 3 * * *" (每天 UTC 3:00 = 北京时间 11:00)
 
 // 预置的 AI 分类映射 (从 Supabase categories 表查询得来)
